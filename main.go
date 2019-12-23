@@ -4,11 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	goUrl "net/url"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 var urlFlag = flag.String("url", "", "url to fetch from")
@@ -17,24 +18,23 @@ var concurrency = flag.Int("concurrency", 20, "number of goroutines to spawn to 
 
 func main() {
 	flag.Parse()
-	fmt.Println(*urlFlag)
-	fmt.Println(*outFileFlag)
 
-	url, err := goUrl.ParseRequestURI(*urlFlag)
-	if err != nil {
-		log.Fatalf("url: %v invalid: %v", *urlFlag, err)
-		os.Exit(1)
-	}
-
-	if *outFileFlag == "" {
-		log.Fatalf("path: %v required", *outFileFlag)
+	url, parseError := goUrl.ParseRequestURI(*urlFlag)
+	if parseError != nil || *outFileFlag == "" {
+		log.WithFields(log.Fields{
+			"url": *urlFlag,
+			"out": *outFileFlag,
+		}).Fatal("invalid arguments")
 		os.Exit(1)
 	}
 
 	// Create the file
 	out, err := os.Create(*outFileFlag)
 	if err != nil {
-		log.Fatalf("error opening file: %v: %v", *outFileFlag, err)
+		log.WithFields(log.Fields{
+			"file": *outFileFlag,
+			"err":  err,
+		}).Fatal("error opening file")
 		os.Exit(1)
 	}
 	defer out.Close()
@@ -42,7 +42,11 @@ func main() {
 	err = Download(*url, out)
 
 	if err != nil {
-		log.Fatalf("error downloading file: %v: %v", *outFileFlag, err)
+		log.WithFields(log.Fields{
+			"file": *outFileFlag,
+			"url":  url,
+			"err":  err,
+		}).Fatal("error downloading file")
 		os.Exit(1)
 	}
 }
@@ -99,8 +103,6 @@ func Download(url url.URL, outFile io.WriterAt) error {
 		i = end + 1
 	}
 
-	fmt.Println(chunks)
-
 	for _, chunk := range chunks {
 		go downloadChunk(chunk)
 	}
@@ -120,7 +122,10 @@ func Download(url url.URL, outFile io.WriterAt) error {
 func downloadChunk(chunk chunkData) {
 	var res result
 
-	fmt.Printf("Fetching bytes %d-%d\n", chunk.start, chunk.end)
+	log.WithFields(log.Fields{
+		"start": chunk.start,
+		"end":   chunk.end,
+	}).Info("fetching chunk bytes")
 
 	defer func() {
 		chunk.finished <- res
