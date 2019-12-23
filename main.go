@@ -21,10 +21,7 @@ func main() {
 
 	url, parseError := goUrl.ParseRequestURI(*urlFlag)
 	if parseError != nil || *outFileFlag == "" {
-		log.WithFields(log.Fields{
-			"url": *urlFlag,
-			"out": *outFileFlag,
-		}).Fatal("invalid arguments")
+		flag.PrintDefaults()
 		os.Exit(1)
 	}
 
@@ -71,6 +68,7 @@ func min(a int64, b int64) int64 {
 	return b
 }
 
+// Download from a url to a local file in parallel chunks
 func Download(url url.URL, outFile io.WriterAt) error {
 	head, err := http.Head(url.String())
 	if err != nil {
@@ -159,6 +157,11 @@ func downloadChunk(chunk chunkData) {
 	if err != nil {
 		res.err = fmt.Errorf("chunked request from %d-%d failed: %w", chunk.start, chunk.end, err)
 	}
+
+	log.WithFields(log.Fields{
+		"start": chunk.start,
+		"end":   chunk.end,
+	}).Info("fetch succeeded")
 }
 
 type chunkWriter struct {
